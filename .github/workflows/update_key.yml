@@ -1,11 +1,8 @@
-name: Update Key Every 6 Hours
-
-permissions:
-  contents: write
+name: Update Kak.Hub Key
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *"   # 6 saatte bir
   workflow_dispatch:
 
 jobs:
@@ -13,17 +10,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Generate Key
+      - name: Generate new key
         run: |
-          KEY=$(date +%Y%m%d%H | sha256sum | cut -c1-16 | tr 'a-f' 'A-F')
+          KEY=$(cat /dev/urandom | tr -dc 'A-Z0-9' | head -c 10)
           echo "$KEY" > key.txt
 
-      - name: Commit & Push
+      - name: Commit and push
         run: |
-          git config user.name "KeyBot"
-          git config user.email "keybot@github.com"
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
           git add key.txt
-          git commit -m "Update key" || echo "No changes"
+          git commit -m "Update key"
           git push
+
+      - name: Send key to Discord
+        run: |
+          curl -H "Content-Type: application/json" \
+          -d "{\"content\":\"🔑 **New Kak.Hub Key**\\n\`\`\`$(cat key.txt)\`\`\`\\n⏰ Valid for 6 hours\"}" \
+          https://discord.com/api/webhooks/${{ secrets.DISCORD_WEBHOOK }}
