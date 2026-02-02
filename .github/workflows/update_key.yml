@@ -2,8 +2,11 @@ name: Update Kak.Hub Key
 
 on:
   schedule:
-    - cron: "0 */6 * * *"   # 6 saatte bir
+    - cron: "0 */6 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   update-key:
@@ -23,11 +26,15 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add key.txt
-          git commit -m "Update key"
+          git commit -m "Update key" || echo "No changes"
           git push
 
       - name: Send key to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
+          KEY=$(cat key.txt)
           curl -H "Content-Type: application/json" \
-          -d "{\"content\":\"🔑 **New Kak.Hub Key**\\n\`\`\`$(cat key.txt)\`\`\`\\n⏰ Valid for 6 hours\"}" \
-          https://discord.com/api/webhooks/${{ secrets.DISCORD_WEBHOOK }}
+          -X POST \
+          -d "{\"content\":\"🔑 **New Kak.Hub Key (6 Hours)**\n\`\`\`\n$KEY\n\`\`\`\"}" \
+          $DISCORD_WEBHOOK
