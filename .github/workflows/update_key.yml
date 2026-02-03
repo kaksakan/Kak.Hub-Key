@@ -2,7 +2,7 @@ name: Update Kak.Hub Key
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 0 * * *"   # 24 saatte 1 (UTC 00:00)
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,7 @@ jobs:
 
       - name: Generate new key
         run: |
-          KEY=$(cat /dev/urandom | tr -dc 'A-Z0-9' | head -c 10)
+          KEY=$(openssl rand -base64 32 | tr -dc 'A-Z0-9' | head -c 10)
           echo "$KEY" > key.txt
 
       - name: Send or Edit Discord Message
@@ -25,9 +25,14 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           KEY=$(cat key.txt)
+
+          if [ ! -f message_id.txt ]; then
+            echo "EMPTY" > message_id.txt
+          fi
+
           MESSAGE_ID=$(cat message_id.txt)
 
-          PAYLOAD="{\"content\":\"🔑 **New Kak.Hub Key (6 Hours)**\n\`\`\`\n$KEY\n\`\`\`\n⏰ Auto-updates every 6 hours\"}"
+          PAYLOAD="{\"content\":\"Kak.Hub Daily Key\n\nKEY:\n$KEY\n\nRenewal: Every 24 Hours\"}"
 
           if [ "$MESSAGE_ID" = "EMPTY" ]; then
             RESPONSE=$(curl -s -X POST "$DISCORD_WEBHOOK?wait=true" \
@@ -46,5 +51,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add key.txt message_id.txt
-          git commit -m "Update key and Discord message" || echo "No changes"
+          git commit -m "Update daily key" || echo "No changes"
           git push
