@@ -2,8 +2,8 @@ name: Update Kak.Hub Key
 
 on:
   schedule:
-    - cron: "0 0 * * *"   # 24 saatte 1 (UTC 00:00)
-  workflow_dispatch:
+    - cron: "0 0 * * *"   # Her 24 saatte bir (UTC 00:00)
+  workflow_dispatch:      # Manuel çalıştırma butonu
 
 permissions:
   contents: write
@@ -15,41 +15,51 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate new key
+      - name: Generate Key and Timestamp
         run: |
+          # 10 haneli anahtar üretimi
           KEY=$(openssl rand -base64 32 | tr -dc 'A-Z0-9' | head -c 10)
           echo "$KEY" > key.txt
+          
+          # 24 saat sonrasının Unix zaman damgası
+          NEXT_RENEWAL=$(date -d "+24 hours" +%s)
+          echo "$NEXT_RENEWAL" > next_expiry.txt
 
       - name: Send or Edit Discord Message
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
           KEY=$(cat key.txt)
-
-          if [ ! -f message_id.txt ]; then
-            echo "EMPTY" > message_id.txt
-          fi
-
+          NEXT_RENEWAL=$(cat next_expiry.txt)
+          
+          if [ ! -f message_id.txt ]; then echo "EMPTY" > message_id.txt; fi
           MESSAGE_ID=$(cat message_id.txt)
 
-          PAYLOAD="{\"content\":\"Kak.Hub Daily Key\n\nKEY:\n$KEY\n\nRenewal: Every 24 Hours\"}"
+          # İngilizce ve emojisiz payload
+          PAYLOAD=$(cat <<EOF
+          {
+            "content": "Kak.Hub Daily Key\n\n\`\`\`$KEY\`\`\`\n\nRenewal: <t:$NEXT_RENEWAL:R>"
+          }
+          EOF
+          )
 
-          if [ "$MESSAGE_ID" = "EMPTY" ]; then
-            RESPONSE=$(curl -s -X POST "$DISCORD_WEBHOOK?wait=true" \
+          if [ "$MESSAGE_ID" = "EMPTY" ] || [ -z "$MESSAGE_ID" ]; then
+            # Yeni mesaj gönder (ID almak için wait=true şart)
+            RESPONSE=$(curl -s -X POST "${DISCORD_WEBHOOK}?wait=true" \
               -H "Content-Type: application/json" \
               -d "$PAYLOAD")
-
             echo "$RESPONSE" | jq -r '.id' > message_id.txt
           else
-            curl -s -X PATCH "$DISCORD_WEBHOOK/messages/$MESSAGE_ID" \
+            # Mevcut mesajı güncelle
+            curl -s -X PATCH "${DISCORD_WEBHOOK}/messages/${MESSAGE_ID}" \
               -H "Content-Type: application/json" \
               -d "$PAYLOAD"
           fi
 
       - name: Commit changes
         run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add key.txt message_id.txt
-          git commit -m "Update daily key" || echo "No changes"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add key.txt message_id.txt next_expiry.txt
+          git commit -m "Update key: $(date)" || echo "No changes"
           git push
